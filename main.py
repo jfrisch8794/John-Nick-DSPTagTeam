@@ -11,7 +11,7 @@ def generate_eem(fluorescence_collection: list[FluorescenceMeasurement], absorpt
 
     for i, led in enumerate(fluorescence_collection):
         for j, em in enumerate(led.emission_responses):
-            for k, ex in enumerate(led.emission_wavelengths):
+            for k, ex in enumerate(pixel_emission_wavelengths_array()):
                 eem[j, k] = ex * em * absorption_spectra[i]
 
 

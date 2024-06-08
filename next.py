@@ -3,35 +3,41 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.ticker import FuncFormatter
 
-from eem_utils import pixel_emission_wavelengths_array, FluorescenceMeasurement, LED, pull_from_csv
+from eem_utils import pixel_emission_wavelengths_array, FluorescenceMeasurement, LED, pull_from_csv, EEM
 
 
 def main():
-    corrected = pixel_emission_wavelengths_array()
-    # print first and last 5 values
-    print(corrected[:5], corrected[-5:])
+    eem_iso = EEM()
+    eem_trypto = EEM()
 
-    eem_matrix_iso = np.array([])
     absorption_iso = pull_from_csv('data/91isopropyl/LED6.csv')
-
-    eem_matrix_trypto = np.array([])
     absorption_trypto = pull_from_csv('data/ltryptophan/LED6.csv')
 
+    excitation_led_nm = [275, 365, 460, 525, 590, 635]
+    flor_ltrp = None
+    flor_iso = None
+
     for i in range(0, 6):
-        emission_data_iso = pull_from_csv('data/91isopropyl/LED' + str(i) + '.csv')
-        emission_data_trypto = pull_from_csv('data/ltryptophan/LED' + str(i) + '.csv')
+        flor_ltrp = FluorescenceMeasurement(LED(wavelength=excitation_led_nm[i]),
+                                            emission_responses=pull_from_csv(
+                                                f'data/ltryptophan/LED{str(i)}.csv'))
+        flor_iso = FluorescenceMeasurement(LED(wavelength=excitation_led_nm[i]),
+                                           emission_responses=pull_from_csv(
+                                               f'data/91isopropyl/LED{str(i)}.csv'))
 
-        # Next append the 288 data points to the eem_matrix as a new column
-        eem_matrix_iso = np.column_stack(
-            (eem_matrix_iso, emission_data_iso)) if eem_matrix_iso.size else emission_data_iso
-        eem_matrix_trypto = np.column_stack(
-            (eem_matrix_trypto, emission_data_trypto)) if eem_matrix_trypto.size else emission_data_trypto
+        eem_iso.add_flor_measurement_meshed_interp(flor_iso)
+        eem_trypto.add_flor_measurement_meshed_interp(flor_ltrp)
 
-    eem_matrix_iso_corr = compute_absorbance_correction(corrected, eem_matrix_iso, absorption_iso)
-    eem_matrix_trypto = compute_absorbance_correction(corrected, eem_matrix_trypto, absorption_trypto)
+    # TODO REMOVE normalization until the end
+    # Subtract the background (Isopropanol) from the sample (L-Tryptophan)
+    eem_trypto.resampled_matrix = eem_trypto.resampled_matrix - eem_iso.resampled_matrix
+    # If the value is negative, set it to 0
+    eem_trypto.resampled_matrix[eem_trypto.resampled_matrix < 0] = 0
+    # Normalize the matrix to the maximum value
+    eem_trypto.resampled_matrix = eem_trypto.get_normalized_matrix()
 
-    plot_eem(corrected, eem_matrix_iso, "EEM Matrix for 91% Isopropyl")
-    plot_eem(corrected, eem_matrix_trypto, "EEM Matrix for L-Tryptophan")
+    eem_iso.plot("EEM Matrix for 91% Isopropyl")
+    eem_trypto.plot("EEM Matrix for L-Tryptophan")
 
     plt.show()
 
